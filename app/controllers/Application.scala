@@ -7,17 +7,15 @@ import org.joda.time.DateTime
 import models.Article
 import models.Article._
 import play.api.Logger
-import play.api.Play.current
 import play.api.mvc._
-import play.modules.reactivemongo.{MongoController, ReactiveMongoPlugin}
+import play.modules.reactivemongo.MongoController
 import reactivemongo.api.gridfs.GridFS
 import reactivemongo.api.gridfs.Implicits.DefaultReadFileReader
 import reactivemongo.bson._
 
 object Articles extends Controller with MongoController {
-  val db = ReactiveMongoPlugin.db
   // get the collection 'articles'
-  val collection = db("articles")
+  val collection: reactivemongo.api.collections.default.BSONCollection = db("articles")
   // a GridFS store named 'attachments'
   val gridFS = new GridFS(db, "attachments")
 
@@ -62,7 +60,6 @@ object Articles extends Controller with MongoController {
         maybeArticle <- futureArticle
         // if there is some article, return a future of result with the article and its attachments
         result <- maybeArticle.map { article =>
-          import reactivemongo.api.gridfs.Implicits.DefaultReadFileReader
           // search for the matching attachments
           // find(...).toList returns a future list of documents (here, a future list of ReadFileEntry)
           gridFS.find(BSONDocument("article" -> article.id.get)).toList.map { files =>
@@ -95,10 +92,10 @@ object Articles extends Controller with MongoController {
         val modifier = BSONDocument(
           // this modifier will set the fields 'updateDate', 'title', 'content', and 'publisher'
           "$set" -> BSONDocument(
-            "updateDate" -> BSONDateTime(new DateTime().getMillis),
-            "title" -> BSONString(article.title),
-            "content" -> BSONString(article.content),
-            "publisher" -> BSONString(article.publisher)))
+            "updateDate" -> new DateTime().getMillis,
+            "title" -> article.title,
+            "content" -> article.content,
+            "publisher" -> article.publisher))
         // ok, let's do the update
         collection.update(BSONDocument("_id" -> objectId), modifier).map { _ =>
           Redirect(routes.Articles.index)
@@ -117,7 +114,7 @@ object Articles extends Controller with MongoController {
         Future.sequence(deletions)
       }.flatMap { _ =>
         // now, the last operation: remove the article
-        collection.remove(BSONDocument("_id" -> new BSONObjectID(id)))
+        collection.remove(BSONDocument("_id" -> id))
       }.map(_ => Ok).recover { case _ => InternalServerError }
     }
   }

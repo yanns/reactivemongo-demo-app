@@ -1,6 +1,5 @@
 package models
 
-import org.jboss.netty.buffer._
 import org.joda.time.DateTime
 import play.api.data._
 import play.api.data.Forms._
