@@ -1,15 +1,15 @@
 package controllers
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
 import org.joda.time.DateTime
 
-import models.{VirusScanner, Article}
+import models.Article
 import models.Article._
 import play.api.Logger
 import play.api.mvc._
 import play.modules.reactivemongo.MongoController
-import reactivemongo.api.gridfs.{DefaultFileToSave, ReadFile, GridFS}
+import reactivemongo.api.gridfs.GridFS
 import reactivemongo.api.gridfs.Implicits.DefaultReadFileReader
 import reactivemongo.bson._
 
@@ -120,7 +120,7 @@ object Articles extends Controller with MongoController {
   }
 
   // save the uploaded file as an attachment of the article with the given id
-  def saveAttachment(id: String) = Action(uploadParser(gridFS)) { request =>
+  def saveAttachment(id: String) = Action(gridFSBodyParser(gridFS)) { request =>
     // first, get the attachment matching the given id, and get the first result (if any)
     val uploaded = collection.find(BSONDocument("_id" -> new BSONObjectID(id))).one[Article]
 
@@ -141,19 +141,6 @@ object Articles extends Controller with MongoController {
       }
     }
   }
-
-  /** Gets a body parser that will save a file sent with multipart/form-data into the given GridFS store. */
-  def uploadParser[Structure, Reader[_], Writer[_]](gfs: GridFS[Structure, Reader, Writer])(implicit readFileReader: Reader[ReadFile[BSONValue]], ec: ExecutionContext): BodyParser[MultipartFormData[Future[ReadFile[BSONValue]]]] = {
-    import BodyParsers.parse._
-    import reactivemongo.api.gridfs.Implicits._
-
-    multipartFormData(Multipart.handleFilePart {
-      case Multipart.FileInfo(partName, filename, contentType) => {
-        VirusScanner.scan.transform(gfs.iteratee(DefaultFileToSave(filename, contentType)))
-      }
-    })
-  }
-
 
   def getAttachment(id: String) = Action {
     Async {
